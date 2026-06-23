@@ -1,8 +1,13 @@
 import pandas as pd
 from  pathlib import Path ### we  are using this so that we can get the absolute path of our directory
 import chromadb ### langchain api keeps on changing so i used chrom db
-
+from groq import Groq
+from dotenv import load_dotenv
 from chromadb.utils import embedding_functions
+import os
+
+load_dotenv() ## it will create those two environment variables ,grok api key ,and grok model
+
 
 # Path(__file__).parent ## it will give us the path till app
 
@@ -47,9 +52,48 @@ def get_releveant_qa(query):
     )
     return result
 
+def faq_chain(query): ## it will take query as as input and return you the final answer
+    result=get_releveant_qa(query)### from this result we want to form an context and that context i want to give it to llm
+    context=''.join([r.get('answer') for r in result['metadatas'][0]])
+    answer=generate_answer(query,context)
+    return answer
+def generate_answer(query,context):
+    prompt= f'''Given the question and context below,generate the answer based on the context only.
+    If you don't find the answer inside the context then say "I don't know".
+    Do not make things up.
+    QUESTION:{query}
+    CONTEXT:{context}
+    '''
+    groq_client=Groq()
+    chat_completion = groq_client.chat.completions.create(
+    messages=[
+        {
+            "role": "system",
+            "content": prompt
+        },
+        # Set a user message for the assistant to respond to.
+        {
+            "role": "user",
+            "content": query,
+        }
+    ],
+
+    # The language model which will generate the completion.
+    model=os.environ['GROQ_MODEL']
+)
+
+# Print the completion returned by the LLM.
+    return chat_completion.choices[0].message.content
+
+
+    
+
 if __name__=="__main__":
     
     ingest_faq_data(faqs_path)
-    query="what's your policy on defection products?"
-    result=get_releveant_qa(query)
-    print(result)
+    query="what's your policy on defective products?"
+    # result=get_releveant_qa(query)
+    # print(result)
+
+    answer=faq_chain(query)
+    print(answer)
